@@ -5,11 +5,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import requests
 from mitreattack.stix20 import MitreAttackData
 
 from .cache import (
     DEFAULT_CACHE_DIR,
     DEFAULT_TTL_HOURS,
+    cache_path,
+    is_cache_valid,
+    write_cache,
 )
 from .models import AttackIndex, AttackTechnique
 
@@ -81,10 +85,20 @@ def build_index(
         log.debug("Loading ATT&CK from local file: %s", stix_path)
         attack_data = MitreAttackData(str(stix_path))
     else:
-        # Network + cache path is implemented in Task 5.
-        raise NotImplementedError(
-            "Network/cache path not yet implemented — provide stix_path for now."
-        )
+        path = cache_path(domain, cache_dir)
+        if is_cache_valid(path, ttl_hours):
+            log.debug("Using cached ATT&CK bundle: %s", path)
+        else:
+            url = STIX_URLS.get(domain)
+            if not url:
+                raise ValueError(
+                    f"Unknown ATT&CK domain: {domain!r}. Valid: {list(STIX_URLS)}"
+                )
+            log.info("Fetching ATT&CK bundle from %s", url)
+            raw = requests.get(url, timeout=30).json()
+            write_cache(path, raw)
+            log.debug("Cached ATT&CK bundle to %s", path)
+        attack_data = MitreAttackData(str(path))
 
     techniques: dict[str, AttackTechnique] = {}
     stix_techniques = attack_data.get_techniques(remove_revoked_deprecated=False)

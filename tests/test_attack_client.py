@@ -56,3 +56,20 @@ def test_no_attack_id_object_is_skipped(stix_fixture: Path) -> None:
     assert "T1059.001" in idx.techniques
     assert "T1040" in idx.techniques
     assert "T1999" in idx.techniques
+
+
+def test_cache_is_written_on_miss(
+    tmp_path: Path, stix_fixture: Path, requests_mock
+) -> None:
+    from ttp_staleness.attack_client import STIX_URLS
+
+    url = STIX_URLS["enterprise-attack"]
+    raw_bundle = stix_fixture.read_text(encoding="utf-8")
+    requests_mock.get(url, text=raw_bundle)
+
+    cache_dir = tmp_path / "cache"
+    idx = build_index(cache_dir=cache_dir, ttl_hours=24)
+
+    assert (cache_dir / "enterprise-attack.json").exists()
+    assert "T1059" in idx.techniques
+    assert requests_mock.call_count == 1
