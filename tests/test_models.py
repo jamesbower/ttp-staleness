@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC
+from datetime import UTC, datetime
 
 import pytest
 
@@ -35,8 +35,6 @@ def test_report_detects_matching_severity() -> None:
 
 
 def test_attack_technique_full_shape() -> None:
-    from datetime import datetime
-
     t = AttackTechnique(
         technique_id="T1059.001",
         name="PowerShell",
@@ -59,8 +57,6 @@ def test_attack_technique_requires_core_fields() -> None:
 
 
 def test_attack_index_shape() -> None:
-    from datetime import datetime
-
     idx = AttackIndex(
         techniques={},
         fetched_at=datetime(2026, 4, 17, tzinfo=UTC),
