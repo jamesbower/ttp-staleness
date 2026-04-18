@@ -26,6 +26,7 @@ class AttackIndex(BaseModel):
 
     techniques: dict[str, AttackTechnique] = Field(default_factory=dict)
     fetched_at: datetime
+    # TODO: populated from x-mitre-collection identity object in a future task.
     attack_version: str | None = None
     source_domain: str = "enterprise-attack"
 

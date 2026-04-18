@@ -95,7 +95,13 @@ def build_index(
                     f"Unknown ATT&CK domain: {domain!r}. Valid: {list(STIX_URLS)}"
                 )
             log.info("Fetching ATT&CK bundle from %s", url)
-            raw = requests.get(url, timeout=30).json()
+            response = requests.get(url, timeout=30)
+            response.raise_for_status()
+            raw = response.json()
+            if raw.get("type") != "bundle":
+                raise ValueError(
+                    f"URL did not return a STIX bundle (type={raw.get('type')!r}): {url}"
+                )
             write_cache(path, raw)
             log.debug("Cached ATT&CK bundle to %s", path)
         attack_data = MitreAttackData(str(path))

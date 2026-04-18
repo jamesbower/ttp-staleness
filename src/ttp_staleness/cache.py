@@ -37,5 +37,10 @@ def read_cache(path: Path) -> dict[str, Any]:
 
 
 def write_cache(path: Path, data: dict[str, Any]) -> None:
-    """Write a dict to disk as JSON."""
-    path.write_text(json.dumps(data), encoding="utf-8")
+    """Write a dict to disk as JSON atomically (write tmp + rename).
+
+    `Path.replace` is atomic on POSIX when tmp and path are on the same filesystem.
+    """
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data), encoding="utf-8")
+    tmp.replace(path)
