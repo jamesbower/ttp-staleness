@@ -1,15 +1,110 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
-from .models import AttackIndex
+from mitreattack.stix20 import MitreAttackData
+
+from .cache import (
+    DEFAULT_CACHE_DIR,
+    DEFAULT_TTL_HOURS,
+)
+from .models import AttackIndex, AttackTechnique
+
+log = logging.getLogger(__name__)
+
+STIX_URLS = {
+    "enterprise-attack": "https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack/enterprise-attack.json",
+    "ics-attack": "https://raw.githubusercontent.com/mitre/cti/master/ics-attack/ics-attack.json",
+    "mobile-attack": "https://raw.githubusercontent.com/mitre/cti/master/mobile-attack/mobile-attack.json",
+}
 
 
-def build_index(domain: str, ttl_hours: int) -> AttackIndex:
-    """Fetch and index an ATT&CK domain bundle.
+def _extract_technique_id(stix_obj: Any) -> str | None:
+    """Pull the ATT&CK technique ID (e.g. T1059.001) from STIX external_references."""
+    for ref in getattr(stix_obj, "external_references", []):
+        if ref.get("source_name") == "mitre-attack":
+            external_id = (ref.get("external_id") or "").upper()
+            return external_id or None
+    return None
 
-    Stub: real implementation will use mitreattack-python + DiskCache. The
-    signature and return type are stable.
+
+def _parse_technique(stix_obj: Any) -> AttackTechnique | None:
+    """Convert a raw STIX attack-pattern object into an AttackTechnique.
+
+    Returns None if the object lacks a mitre-attack external reference.
     """
-    _ = (domain, ttl_hours)
-    return AttackIndex(fetched_at=datetime(1970, 1, 1, tzinfo=UTC))
+    technique_id = _extract_technique_id(stix_obj)
+    if not technique_id:
+        log.debug("Skipping STIX object with no ATT&CK external_id: %s", stix_obj.id)
+        return None
+
+    modified: datetime = stix_obj.modified
+    if modified.tzinfo is None:
+        modified = modified.replace(tzinfo=UTC)
+
+    tactic_ids = [
+        phase.phase_name
+        for phase in getattr(stix_obj, "kill_chain_phases", [])
+        if getattr(phase, "kill_chain_name", None) == "mitre-attack"
+    ]
+
+    return AttackTechnique(
+        technique_id=technique_id,
+        name=stix_obj.name,
+        modified=modified,
+        is_subtechnique=getattr(stix_obj, "x_mitre_is_subtechnique", False),
+        deprecated=getattr(stix_obj, "x_mitre_deprecated", False),
+        tactic_ids=tactic_ids,
+        stix_id=stix_obj.id,
+    )
+
+
+def build_index(
+    domain: str = "enterprise-attack",
+    cache_dir: Path = DEFAULT_CACHE_DIR,
+    ttl_hours: int = DEFAULT_TTL_HOURS,
+    stix_path: Path | None = None,
+) -> AttackIndex:
+    """Fetch the ATT&CK STIX bundle and return a fully-parsed AttackIndex.
+
+    Network behavior:
+    - If `stix_path` is provided, load directly from that file (used by tests).
+    - Else, use the on-disk cache if it's fresher than `ttl_hours`.
+    - Else, fetch from the MITRE CTI GitHub URL, write the cache, and load from it.
+    """
+    fetched_at = datetime.now(UTC)
+
+    if stix_path is not None:
+        log.debug("Loading ATT&CK from local file: %s", stix_path)
+        attack_data = MitreAttackData(str(stix_path))
+    else:
+        # Network + cache path is implemented in Task 5.
+        raise NotImplementedError(
+            "Network/cache path not yet implemented — provide stix_path for now."
+        )
+
+    techniques: dict[str, AttackTechnique] = {}
+    stix_techniques = attack_data.get_techniques(remove_revoked_deprecated=False)
+
+    for stix_obj in stix_techniques:
+        parsed = _parse_technique(stix_obj)
+        if parsed is None:
+            continue
+        if parsed.technique_id in techniques:
+            log.warning(
+                "Duplicate technique_id %s — keeping first occurrence",
+                parsed.technique_id,
+            )
+            continue
+        techniques[parsed.technique_id] = parsed
+
+    log.info("Loaded %d ATT&CK techniques (%s)", len(techniques), domain)
+
+    return AttackIndex(
+        techniques=techniques,
+        fetched_at=fetched_at,
+        source_domain=domain,
+    )
