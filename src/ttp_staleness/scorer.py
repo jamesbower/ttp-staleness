@@ -90,8 +90,8 @@ def _score_technique(
         )
 
     # Rule predates the technique's last modification: stale.
-    # Staleness = how long ago the rule was last effective (days since rule date).
-    days_stale = (today - rule_effective_date).days
+    # Staleness = how old MITRE's technique info is (bounded by technique_date, not by rule age).
+    days_stale = (today - technique_date).days
     return TechniqueFinding(
         technique_id=technique_id,
         technique_name=tech.name,
@@ -127,8 +127,12 @@ def score_rule(rule: SigmaRule, index: AttackIndex) -> RuleScore:
     findings = [
         _score_technique(tid, effective_date, index) for tid in rule.technique_ids
     ]
-    worst = _worst_severity(findings)
-    worst_days = max(f.days_stale for f in findings)
+    # Derive both from the same winning finding: severity first, then days_stale for tie-break.
+    worst_finding = max(
+        findings, key=lambda f: (_SEVERITY_ORDER[f.severity], f.days_stale)
+    )
+    worst = worst_finding.severity
+    worst_days = worst_finding.days_stale
 
     return RuleScore(
         rule_id=rule.rule_id,

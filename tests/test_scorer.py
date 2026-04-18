@@ -132,3 +132,38 @@ def test_modified_date_preferred_over_rule_date() -> None:
     # modified_date (10 days ago) > technique_modified (100 days ago) → current
     assert score.worst_days_stale == 0
     assert score.findings[0].kind == "current"
+
+
+def test_stale_severity_reflects_technique_age_not_rule_age() -> None:
+    """When rule is older than technique by 1 day AND technique is 89 days old,
+    staleness should be 89 (low), not the rule's 90-day age (medium).
+
+    Protects against the bug where days_stale used (today - rule_effective_date)
+    instead of (today - technique_date).
+    """
+    rule = _make_rule(["T1059"], rule_date=TODAY - timedelta(days=90))
+    index = _make_index_with(_make_technique("T1059", days_ago=89))
+    score = score_rule(rule, index)
+    assert score.findings[0].kind == "stale"
+    assert score.findings[0].days_stale == 89
+    assert score.worst_severity == "low"
+
+
+def test_mixed_deprecated_and_stale_pairs_correctly() -> None:
+    """When a rule covers a deprecated technique (high, 0d) AND a stale medium
+    technique (medium, ~100d), worst_severity must pair with the winning
+    finding's own days_stale — not accidentally report (high, 100d).
+    """
+    rule = _make_rule(
+        ["T1086", "T1059"],
+        rule_date=TODAY - timedelta(days=200),  # ~older than techniques below
+    )
+    index = _make_index_with(
+        _make_technique("T1086", deprecated=True),
+        _make_technique("T1059", days_ago=100),  # stale: ~100 days
+    )
+    score = score_rule(rule, index)
+    # deprecated finding wins severity (high beats medium/low)
+    assert score.worst_severity == "high"
+    # worst_days_stale is 0 (from the deprecated finding), NOT 100
+    assert score.worst_days_stale == 0
