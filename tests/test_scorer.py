@@ -1,7 +1,14 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 
-from ttp_staleness.models import AttackIndex, Report
-from ttp_staleness.scorer import score_rules
+from ttp_staleness.models import (
+    AttackIndex,
+    AttackTechnique,
+    Report,
+    RuleScore,
+    SigmaRule,
+)
+from ttp_staleness.scorer import score_rule, score_rules
 
 
 def test_empty_inputs_yield_empty_report() -> None:
@@ -10,3 +17,118 @@ def test_empty_inputs_yield_empty_report() -> None:
     assert isinstance(report, Report)
     assert report.findings == []
     assert report.has_severity("critical") is False
+
+
+TODAY = date.today()
+
+
+def _make_technique(
+    tid: str = "T1059",
+    days_ago: int = 400,
+    deprecated: bool = False,
+) -> AttackTechnique:
+    return AttackTechnique(
+        technique_id=tid,
+        name=f"Tech {tid}",
+        modified=datetime.now(UTC) - timedelta(days=days_ago),
+        is_subtechnique="." in tid,
+        deprecated=deprecated,
+        tactic_ids=["execution"],
+        stix_id=f"attack-pattern--fake-{tid}",
+    )
+
+
+def _make_index_with(*techniques: AttackTechnique) -> AttackIndex:
+    return AttackIndex(
+        techniques={t.technique_id: t for t in techniques},
+        fetched_at=datetime.now(UTC),
+    )
+
+
+def _make_rule(
+    technique_ids: list[str],
+    rule_date: date | None = None,
+    modified_date: date | None = None,
+) -> SigmaRule:
+    return SigmaRule(
+        rule_id="test-id",
+        title="Test Rule",
+        status="test",
+        rule_date=rule_date,
+        modified_date=modified_date,
+        technique_ids=technique_ids,
+        source_file=Path("/fake/rule.yml"),
+        raw_tags=[],
+    )
+
+
+def test_critical_above_365_days() -> None:
+    rule = _make_rule(["T1059"], rule_date=TODAY - timedelta(days=500))
+    index = _make_index_with(_make_technique("T1059", days_ago=400))
+    score = score_rule(rule, index)
+    assert isinstance(score, RuleScore)
+    assert score.worst_severity == "critical"
+    assert score.worst_days_stale >= 365
+
+
+def test_high_between_180_and_365() -> None:
+    rule = _make_rule(["T1059"], rule_date=TODAY - timedelta(days=300))
+    index = _make_index_with(_make_technique("T1059", days_ago=200))
+    score = score_rule(rule, index)
+    assert score.worst_severity == "high"
+    assert 180 <= score.worst_days_stale < 365
+
+
+def test_current_when_rule_newer_than_technique() -> None:
+    rule = _make_rule(["T1059"], rule_date=TODAY)
+    index = _make_index_with(_make_technique("T1059", days_ago=100))
+    score = score_rule(rule, index)
+    assert score.worst_severity == "low"
+    assert score.worst_days_stale == 0
+    assert score.findings[0].kind == "current"
+
+
+def test_no_attack_tags_returns_info() -> None:
+    rule = _make_rule([])
+    index = _make_index_with()
+    score = score_rule(rule, index)
+    assert score.has_attack_tags is False
+    assert score.worst_severity == "info"
+    assert score.findings == []
+
+
+def test_unknown_technique_has_unknown_kind() -> None:
+    rule = _make_rule(["T9999"])
+    index = _make_index_with()  # T9999 not indexed
+    score = score_rule(rule, index)
+    assert score.findings[0].kind == "unknown_technique"
+    assert score.findings[0].severity == "info"
+
+
+def test_deprecated_technique_returns_high() -> None:
+    rule = _make_rule(["T1086"])
+    index = _make_index_with(_make_technique("T1086", deprecated=True))
+    score = score_rule(rule, index)
+    assert score.findings[0].kind == "deprecated_technique"
+    assert score.findings[0].severity == "high"
+
+
+def test_no_rule_date_scores_conservatively() -> None:
+    rule = _make_rule(["T1059"])  # no dates
+    index = _make_index_with(_make_technique("T1059", days_ago=200))
+    score = score_rule(rule, index)
+    assert score.findings[0].kind == "no_rule_date"
+    assert score.worst_days_stale >= 200
+
+
+def test_modified_date_preferred_over_rule_date() -> None:
+    rule = _make_rule(
+        ["T1059"],
+        rule_date=TODAY - timedelta(days=500),
+        modified_date=TODAY - timedelta(days=10),
+    )
+    index = _make_index_with(_make_technique("T1059", days_ago=100))
+    score = score_rule(rule, index)
+    # modified_date (10 days ago) > technique_modified (100 days ago) → current
+    assert score.worst_days_stale == 0
+    assert score.findings[0].kind == "current"
