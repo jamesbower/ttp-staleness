@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -11,6 +12,8 @@ from pytest_mock import MockerFixture
 from ttp_staleness import __version__
 from ttp_staleness.cli import main
 from ttp_staleness.models import AttackIndex, Finding, Report, Rule
+
+_EMPTY_INDEX = AttackIndex(fetched_at=datetime(2026, 1, 1, tzinfo=UTC))
 
 
 def test_main_help_runs() -> None:
@@ -32,7 +35,7 @@ def patched_pipeline(mocker: MockerFixture) -> dict[str, MagicMock]:
     """Replace scan's lazy-imported functions with mocks returning empty data."""
     return {
         "build_index": mocker.patch(
-            "ttp_staleness.attack_client.build_index", return_value=AttackIndex()
+            "ttp_staleness.attack_client.build_index", return_value=_EMPTY_INDEX
         ),
         "parse_rule_dir": mocker.patch(
             "ttp_staleness.rule_parser.parse_rule_dir", return_value=[]
@@ -117,7 +120,7 @@ def test_scan_exits_1_when_critical_finding(
 ) -> None:
     rule = Rule(id="r1", title="t1")
     critical = Report(findings=[Finding(rule=rule, severity="critical", reason="x")])
-    mocker.patch("ttp_staleness.attack_client.build_index", return_value=AttackIndex())
+    mocker.patch("ttp_staleness.attack_client.build_index", return_value=_EMPTY_INDEX)
     mocker.patch("ttp_staleness.rule_parser.parse_rule_dir", return_value=[])
     mocker.patch("ttp_staleness.scorer.score_rules", return_value=critical)
 

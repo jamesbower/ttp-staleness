@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC
+
 import pytest
 
 from ttp_staleness.models import (
@@ -32,15 +34,41 @@ def test_report_detects_matching_severity() -> None:
     assert r.has_severity("high") is False
 
 
-def test_attack_technique_roundtrip() -> None:
-    t = AttackTechnique(id="T1059.001", name="PowerShell", deprecated=False)
-    assert t.id == "T1059.001"
+def test_attack_technique_full_shape() -> None:
+    from datetime import datetime
+
+    t = AttackTechnique(
+        technique_id="T1059.001",
+        name="PowerShell",
+        modified=datetime(2024, 10, 17, 15, 19, 6, tzinfo=UTC),
+        is_subtechnique=True,
+        deprecated=False,
+        tactic_ids=["execution"],
+        stix_id="attack-pattern--00000000-0000-0000-0000-000000001060",
+    )
+    assert t.technique_id == "T1059.001"
+    assert t.is_subtechnique is True
     assert t.deprecated is False
+    assert t.tactic_ids == ["execution"]
+    assert t.modified.tzinfo is not None
 
 
-def test_attack_index_is_empty_by_default() -> None:
-    idx = AttackIndex()
+def test_attack_technique_requires_core_fields() -> None:
+    with pytest.raises(ValueError):
+        AttackTechnique()  # type: ignore[call-arg]
+
+
+def test_attack_index_shape() -> None:
+    from datetime import datetime
+
+    idx = AttackIndex(
+        techniques={},
+        fetched_at=datetime(2026, 4, 17, tzinfo=UTC),
+    )
     assert idx.techniques == {}
+    assert idx.source_domain == "enterprise-attack"
+    assert idx.attack_version is None
+    assert idx.fetched_at.tzinfo is not None
 
 
 def test_rule_requires_id_and_title() -> None:
