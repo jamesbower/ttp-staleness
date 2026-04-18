@@ -1,0 +1,12 @@
+title: PowerShell Encoded Command
+id: 10598928-44a9-4730-b79f-69b62fe73666
+status: test
+date: 2024/03/15
+modified: 2024/11/01
+tags:
+  - attack.execution
+  - attack.t1059.001
+detection:
+  selection:
+    CommandLine|contains: '-EncodedCommand'
+  condition: selection

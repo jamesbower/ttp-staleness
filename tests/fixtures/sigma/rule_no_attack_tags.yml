@@ -1,0 +1,10 @@
+title: Vendor Rule No ATT&CK
+status: experimental
+date: 2023/06/01
+tags:
+  - cve.2021-44228
+  - logging.windows
+detection:
+  selection:
+    EventID: 4625
+  condition: selection

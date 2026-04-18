@@ -1,0 +1,10 @@
+title: Suspicious PowerShell
+id: aaaabbbb-1234-5678-abcd-000000000001
+status: stable
+date: 2022/01/10
+tags:
+  - attack.t1059
+detection:
+  selection:
+    Image|endswith: powershell.exe
+  condition: selection

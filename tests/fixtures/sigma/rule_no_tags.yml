@@ -1,0 +1,6 @@
+title: Bare Rule
+status: stable
+detection:
+  selection:
+    EventID: 4648
+  condition: selection
