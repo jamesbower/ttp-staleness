@@ -42,6 +42,7 @@ def _make_technique(
     tid: str = "T1059",
     days_ago: int = 400,
     deprecated: bool = False,
+    revoked: bool = False,
 ) -> AttackTechnique:
     return AttackTechnique(
         technique_id=tid,
@@ -49,6 +50,7 @@ def _make_technique(
         modified=datetime.now(UTC) - timedelta(days=days_ago),
         is_subtechnique="." in tid,
         deprecated=deprecated,
+        revoked=revoked,
         tactic_ids=["execution"],
         stix_id=f"attack-pattern--fake-{tid}",
     )
@@ -199,3 +201,36 @@ def test_summary_counts_deprecated_rule_in_rules_with_findings() -> None:
     assert report.summary.total_rules == 1
     assert report.summary.rules_with_findings == 1
     assert report.summary.deprecated_techniques == 1
+
+
+def test_revoked_technique_returns_high_with_revoked_kind() -> None:
+    """A rule referencing a revoked technique must produce kind=revoked_technique
+    with severity high, regardless of the rule's date."""
+    rule = _make_rule(["T1086"], rule_date=TODAY)
+    index = _make_index_with(_make_technique("T1086", revoked=True))
+    score = score_rule(rule, index)
+    assert score.findings[0].kind == "revoked_technique"
+    assert score.findings[0].severity == "high"
+    assert score.worst_severity == "high"
+    assert score.worst_days_stale == 0
+
+
+def test_revoked_takes_precedence_over_deprecated() -> None:
+    """If a technique is both revoked and deprecated, the finding surfaces the
+    revoked kind (revoked is the stronger signal — concept is gone, not just old)."""
+    rule = _make_rule(["T1086"], rule_date=TODAY)
+    index = _make_index_with(_make_technique("T1086", deprecated=True, revoked=True))
+    score = score_rule(rule, index)
+    assert score.findings[0].kind == "revoked_technique"
+
+
+def test_summary_counts_revoked_rule_in_rules_with_findings() -> None:
+    """Revoked techniques must show up in rules_with_findings and revoked_techniques."""
+    rule = _make_rule(["T1086"], rule_date=TODAY)
+    index = _make_index_with(_make_technique("T1086", revoked=True))
+
+    report = score_rules([rule], index)
+    assert report.summary.total_rules == 1
+    assert report.summary.rules_with_findings == 1
+    assert report.summary.revoked_techniques == 1
+    assert report.summary.deprecated_techniques == 0

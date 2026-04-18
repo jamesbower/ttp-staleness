@@ -90,3 +90,16 @@ def test_cache_is_used_on_hit(
 
     get_spy.assert_not_called()
     assert "T1059" in idx.techniques
+
+
+def test_revoked_technique_flag_is_parsed(stix_fixture: Path) -> None:
+    """The T1999 fixture has `revoked: true`; parsed AttackTechnique.revoked
+    must reflect that. Separate from the `deprecated` flag (which T1040 sets)."""
+    idx = build_index(stix_path=stix_fixture)
+
+    assert idx.techniques["T1999"].revoked is True
+    # Sanity-check that a normal technique is NOT revoked.
+    assert idx.techniques["T1059"].revoked is False
+    # Deprecated ≠ revoked — T1040 is deprecated but not revoked in the fixture.
+    assert idx.techniques["T1040"].deprecated is True
+    assert idx.techniques["T1040"].revoked is False

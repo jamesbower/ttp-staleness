@@ -61,6 +61,7 @@ def _parse_technique(stix_obj: Any) -> AttackTechnique | None:
         modified=modified,
         is_subtechnique=getattr(stix_obj, "x_mitre_is_subtechnique", False),
         deprecated=getattr(stix_obj, "x_mitre_deprecated", False),
+        revoked=getattr(stix_obj, "revoked", False),
         tactic_ids=tactic_ids,
         stix_id=stix_obj.id,
     )

@@ -21,6 +21,7 @@ def _empty_report() -> StalenessReport:
             no_attack_tags=0,
             unknown_techniques=0,
             deprecated_techniques=0,
+            revoked_techniques=0,
             generated_at=datetime(2026, 4, 17, tzinfo=UTC),
             attack_domain="enterprise-attack",
             attack_fetched_at=datetime(2026, 4, 17, tzinfo=UTC),

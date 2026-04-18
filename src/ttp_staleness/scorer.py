@@ -54,6 +54,17 @@ def _score_technique(
             kind="unknown_technique",
         )
 
+    if tech.revoked:
+        return TechniqueFinding(
+            technique_id=technique_id,
+            technique_name=tech.name,
+            technique_modified=tech.modified,
+            rule_effective_date=rule_effective_date,
+            days_stale=0,
+            severity="high",
+            kind="revoked_technique",
+        )
+
     if tech.deprecated:
         return TechniqueFinding(
             technique_id=technique_id,
@@ -172,6 +183,9 @@ def score_rules(rules: list[SigmaRule], index: AttackIndex) -> StalenessReport:
         ),
         deprecated_techniques=sum(
             1 for s in scores for f in s.findings if f.kind == "deprecated_technique"
+        ),
+        revoked_techniques=sum(
+            1 for s in scores for f in s.findings if f.kind == "revoked_technique"
         ),
         generated_at=datetime.now(UTC),
         attack_domain=index.source_domain,

@@ -15,6 +15,7 @@ class AttackTechnique(BaseModel):
     modified: datetime
     is_subtechnique: bool
     deprecated: bool = False
+    revoked: bool = False
     tactic_ids: list[str] = Field(default_factory=list)
     stix_id: str
 
@@ -49,6 +50,7 @@ FindingKind = Literal[
     "no_attack_tags",
     "no_rule_date",
     "deprecated_technique",
+    "revoked_technique",
     "unknown_technique",
 ]
 
@@ -88,6 +90,7 @@ class ReportSummary(BaseModel):
     no_attack_tags: int
     unknown_techniques: int
     deprecated_techniques: int
+    revoked_techniques: int
     generated_at: datetime
     attack_domain: str
     attack_fetched_at: datetime
