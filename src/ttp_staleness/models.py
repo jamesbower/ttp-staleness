@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Literal
 
@@ -49,3 +49,16 @@ class Report(BaseModel):
 
     def has_severity(self, level: Severity) -> bool:
         return any(f.severity == level for f in self.findings)
+
+
+class SigmaRule(BaseModel):
+    """A parsed Sigma rule with the fields relevant to staleness scoring."""
+
+    rule_id: str | None = None
+    title: str
+    status: str | None = None
+    rule_date: date | None = None
+    modified_date: date | None = None
+    technique_ids: list[str] = Field(default_factory=list)
+    source_file: Path
+    raw_tags: list[str] = Field(default_factory=list)
