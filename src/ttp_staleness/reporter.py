@@ -34,14 +34,13 @@ def render(
     The three formats (terminal / json / html) each filter findings below
     `min_severity`. Returns a str; the caller decides where to write it.
     """
-    _ = min_severity  # Tasks 4-6 wire this into the three branches.
     if output_format == "terminal":
         return (
             "ttp-staleness scorecard\n"
             f"{len(report.scores)} scored rules\n"
         )
     if output_format == "json":
-        return report.model_dump_json(indent=2)
+        return _filter_scores(report, min_severity).model_dump_json(indent=2)
     if output_format == "html":
         return (
             "<!doctype html><html><head><title>ttp-staleness</title></head>"

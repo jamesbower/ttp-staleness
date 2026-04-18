@@ -76,3 +76,20 @@ def test_filter_scores_raises_on_unknown_level(sample_report) -> None:
 
     with pytest.raises(KeyError):
         _filter_scores(sample_report, "extreme")
+
+
+def test_json_filters_by_min_severity(sample_report) -> None:
+    output = render(sample_report, output_format="json", min_severity="high")
+    data = json.loads(output)
+    returned_severities = {s["worst_severity"] for s in data["scores"]}
+    assert returned_severities <= {"critical", "high"}
+    assert len(data["scores"]) == 2
+
+
+def test_json_summary_unchanged_by_filter(sample_report) -> None:
+    """The filter drops scores; summary counters stay authoritative."""
+    output = render(sample_report, output_format="json", min_severity="critical")
+    data = json.loads(output)
+    # Summary reflects the ORIGINAL counts — not the filtered scores.
+    assert data["summary"]["total_rules"] == 5
+    assert data["summary"]["critical"] == 1
