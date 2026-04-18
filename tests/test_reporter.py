@@ -14,9 +14,32 @@ def test_json_render_parses_as_json(sample_report) -> None:
     assert "scores" in parsed
 
 
-def test_html_render_contains_html_tag(sample_report) -> None:
+def test_html_render_contains_doctype_and_title(sample_report) -> None:
     out = render(sample_report, output_format="html", min_severity="low")
-    assert "<html" in out.lower()
+    assert "<!DOCTYPE html>" in out
+    assert "TTP Staleness Report" in out
+
+
+def test_html_render_shows_summary_counts(sample_report) -> None:
+    out = render(sample_report, output_format="html", min_severity="low")
+    # The summary stats block shows total_rules=5 and the domain name.
+    assert "5" in out
+    assert "enterprise-attack" in out
+
+
+def test_html_render_includes_rule_rows(sample_report) -> None:
+    out = render(sample_report, output_format="html", min_severity="low")
+    assert "Critical Test Rule" in out
+    assert "T1059" in out
+    assert "badge-critical" in out
+
+
+def test_html_render_filters_by_min_severity(sample_report) -> None:
+    out = render(sample_report, output_format="html", min_severity="high")
+    assert "Critical Test Rule" in out
+    assert "High Test Rule" in out
+    assert "Medium Test Rule" not in out
+    assert "Low Test Rule" not in out
 
 
 def test_unknown_format_raises(sample_report) -> None:

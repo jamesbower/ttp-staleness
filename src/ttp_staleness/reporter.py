@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from io import StringIO
 
+from jinja2 import Environment, PackageLoader
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
@@ -82,6 +83,17 @@ def _render_terminal(report: StalenessReport, min_severity: str) -> str:
     return buf.getvalue()
 
 
+def _render_html(report: StalenessReport, min_severity: str) -> str:
+    """Render the report to a self-contained HTML string via Jinja2."""
+    filtered = _filter_scores(report, min_severity)
+    env = Environment(
+        loader=PackageLoader("ttp_staleness", "templates"),
+        autoescape=True,
+    )
+    template = env.get_template("report.html.j2")
+    return template.render(summary=filtered.summary, scores=filtered.scores)
+
+
 def render(
     report: StalenessReport,
     output_format: str = "terminal",
@@ -97,8 +109,5 @@ def render(
     if output_format == "json":
         return _filter_scores(report, min_severity).model_dump_json(indent=2)
     if output_format == "html":
-        return (
-            "<!doctype html><html><head><title>ttp-staleness</title></head>"
-            f"<body><p>{len(report.scores)} scored rules</p></body></html>"
-        )
+        return _render_html(report, min_severity)
     raise ValueError(f"unknown output_format: {output_format!r}")
