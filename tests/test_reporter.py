@@ -1,55 +1,27 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 
 import pytest
 
-from ttp_staleness.models import ReportSummary, StalenessReport
 from ttp_staleness.reporter import render
 
 
-def _empty_report() -> StalenessReport:
-    return StalenessReport(
-        summary=ReportSummary(
-            total_rules=0,
-            rules_with_findings=0,
-            critical=0,
-            high=0,
-            medium=0,
-            low=0,
-            no_attack_tags=0,
-            unknown_techniques=0,
-            deprecated_techniques=0,
-            revoked_techniques=0,
-            generated_at=datetime(2026, 4, 17, tzinfo=UTC),
-            attack_domain="enterprise-attack",
-            attack_fetched_at=datetime(2026, 4, 17, tzinfo=UTC),
-        ),
-        scores=[],
-    )
-
-
-def test_terminal_render_contains_header() -> None:
-    out = render(_empty_report(), output_format="terminal", min_severity="low")
-    assert "ttp-staleness" in out.lower()
-
-
-def test_json_render_parses_as_json() -> None:
-    out = render(_empty_report(), output_format="json", min_severity="low")
+def test_json_render_parses_as_json(sample_report) -> None:
+    out = render(sample_report, output_format="json", min_severity="low")
     parsed = json.loads(out)
     assert "summary" in parsed
     assert "scores" in parsed
 
 
-def test_html_render_contains_html_tag() -> None:
-    out = render(_empty_report(), output_format="html", min_severity="low")
+def test_html_render_contains_html_tag(sample_report) -> None:
+    out = render(sample_report, output_format="html", min_severity="low")
     assert "<html" in out.lower()
 
 
-def test_unknown_format_raises() -> None:
+def test_unknown_format_raises(sample_report) -> None:
     with pytest.raises(ValueError):
-        render(_empty_report(), output_format="xml", min_severity="low")
+        render(sample_report, output_format="xml", min_severity="low")
 
 
 def test_filter_scores_drops_below_threshold(sample_report) -> None:
@@ -93,3 +65,35 @@ def test_json_summary_unchanged_by_filter(sample_report) -> None:
     # Summary reflects the ORIGINAL counts — not the filtered scores.
     assert data["summary"]["total_rules"] == 5
     assert data["summary"]["critical"] == 1
+
+
+def test_terminal_render_contains_rule_titles(sample_report) -> None:
+    out = render(sample_report, output_format="terminal", min_severity="low")
+    assert "Critical Test Rule" in out
+    assert "High Test Rule" in out
+    assert "Medium Test Rule" in out
+
+
+def test_terminal_render_contains_summary(sample_report) -> None:
+    out = render(sample_report, output_format="terminal", min_severity="low")
+    # Summary panel mentions the CRITICAL count and domain.
+    assert "CRITICAL" in out
+    assert "5" in out  # total_rules
+    assert "enterprise-attack" in out
+
+
+def test_terminal_render_has_no_rich_markup_leaks(sample_report) -> None:
+    out = render(sample_report, output_format="terminal", min_severity="low")
+    # Style markers must not appear as literal text.
+    assert "[critical]" not in out
+    assert "[/critical]" not in out
+    assert "[high]" not in out
+
+
+def test_terminal_filters_by_min_severity(sample_report) -> None:
+    out = render(sample_report, output_format="terminal", min_severity="high")
+    assert "Critical Test Rule" in out
+    assert "High Test Rule" in out
+    # Below-threshold rules must not appear in the table.
+    assert "Medium Test Rule" not in out
+    assert "Low Test Rule" not in out

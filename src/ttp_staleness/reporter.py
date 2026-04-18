@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+from io import StringIO
+
+from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+
+from .console import theme
 from .models import StalenessReport
 
 _SEVERITY_RANK: dict[str, int] = {
@@ -24,6 +32,56 @@ def _filter_scores(report: StalenessReport, min_severity: str) -> StalenessRepor
     return report.model_copy(update={"scores": kept})
 
 
+def _render_terminal(report: StalenessReport, min_severity: str) -> str:
+    """Render a Rich summary panel + findings table to a string."""
+    threshold = _SEVERITY_RANK[min_severity]
+    buf = StringIO()
+    console = Console(file=buf, highlight=False, width=120, theme=theme)
+
+    s = report.summary
+    summary_text = (
+        f"Rules scanned: {s.total_rules}   "
+        f"[critical]CRITICAL: {s.critical}[/critical]   "
+        f"[high]HIGH: {s.high}[/high]   "
+        f"[medium]MEDIUM: {s.medium}[/medium]   "
+        f"[low]LOW: {s.low}[/low]\n"
+        f"ATT&CK: {s.attack_domain} \u00b7 No tags: {s.no_attack_tags} "
+        f"\u00b7 Unknown: {s.unknown_techniques} "
+        f"\u00b7 Deprecated: {s.deprecated_techniques} "
+        f"\u00b7 Revoked: {s.revoked_techniques}"
+    )
+    console.print(Panel(summary_text, title="TTP-Staleness Report", expand=False))
+
+    table = Table(box=box.SIMPLE_HEAVY, show_header=True)
+    table.add_column("Severity", width=10)
+    table.add_column("Title", max_width=40, no_wrap=True)
+    table.add_column("Technique", width=12)
+    table.add_column("Days Stale", justify="right", width=11)
+    table.add_column("Rule Date", width=11)
+    table.add_column("ATT&CK Modified", width=16)
+    table.add_column("File", max_width=40, no_wrap=True)
+
+    for score in report.scores:
+        if _SEVERITY_RANK[score.worst_severity] < threshold:
+            continue
+        for finding in score.findings:
+            if _SEVERITY_RANK[finding.severity] < threshold:
+                continue
+            sev = finding.severity
+            table.add_row(
+                f"[{sev}]{sev.upper()}[/{sev}]",
+                score.title[:40],
+                finding.technique_id,
+                str(finding.days_stale) if finding.days_stale else "\u2014",
+                str(finding.rule_effective_date or ""),
+                str(finding.technique_modified.date() if finding.technique_modified else ""),
+                str(score.source_file.name),
+            )
+
+    console.print(table)
+    return buf.getvalue()
+
+
 def render(
     report: StalenessReport,
     output_format: str = "terminal",
@@ -35,10 +93,7 @@ def render(
     `min_severity`. Returns a str; the caller decides where to write it.
     """
     if output_format == "terminal":
-        return (
-            "ttp-staleness scorecard\n"
-            f"{len(report.scores)} scored rules\n"
-        )
+        return _render_terminal(report, min_severity)
     if output_format == "json":
         return _filter_scores(report, min_severity).model_dump_json(indent=2)
     if output_format == "html":
