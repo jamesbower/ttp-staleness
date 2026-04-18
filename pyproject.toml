@@ -40,6 +40,7 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ttp_staleness"]
+include = ["src/ttp_staleness/templates/*"]
 
 [tool.ruff]
 line-length = 100
