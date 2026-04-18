@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import date
 from pathlib import Path
 
-from .models import Rule
+import yaml
+from pydantic import ValidationError
+
+from .models import Rule, SigmaRule
 
 log = logging.getLogger(__name__)
 
@@ -24,6 +28,63 @@ def _extract_technique_ids(tags: list[str]) -> list[str]:
         if m:
             ids.append(m.group(1).upper())
     return ids
+
+
+def _parse_sigma_date(value: object) -> date | None:
+    """Parse Sigma date fields.
+
+    Accepts:
+    - ``None`` → ``None``
+    - a ``datetime.date`` (PyYAML auto-parses ISO-formatted dates) → returned as-is
+    - a string in ``YYYY/MM/DD`` or ``YYYY-MM-DD`` form → parsed via ``date.fromisoformat``
+
+    Returns ``None`` for anything unparseable (logged at DEBUG).
+    """
+    if value is None:
+        return None
+    if isinstance(value, date):
+        return value
+    text = str(value).strip().replace("/", "-")
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        log.debug("Unparseable date value: %r", value)
+        return None
+
+
+def parse_rule_file(path: Path) -> SigmaRule | None:
+    """Parse a single Sigma YAML rule file.
+
+    Returns None if the file can't be read, isn't valid YAML, isn't a YAML dict,
+    or fails SigmaRule validation.
+    """
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (yaml.YAMLError, OSError) as exc:
+        log.warning("Failed to read %s: %s", path, exc)
+        return None
+
+    if not isinstance(raw, dict):
+        log.debug("Skipping non-dict YAML in %s", path)
+        return None
+
+    tags: list[str] = raw.get("tags") or []
+    technique_ids = _extract_technique_ids(tags)
+
+    try:
+        return SigmaRule(
+            rule_id=raw.get("id"),
+            title=raw.get("title", path.stem),
+            status=raw.get("status"),
+            rule_date=_parse_sigma_date(raw.get("date")),
+            modified_date=_parse_sigma_date(raw.get("modified")),
+            technique_ids=technique_ids,
+            source_file=path.resolve(),
+            raw_tags=tags,
+        )
+    except ValidationError as exc:
+        log.warning("Validation error parsing %s: %s", path, exc)
+        return None
 
 
 def parse_rule_dir(rule_dir: Path) -> list[Rule]:
