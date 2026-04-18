@@ -73,3 +73,20 @@ def test_cache_is_written_on_miss(
     assert (cache_dir / "enterprise-attack.json").exists()
     assert "T1059" in idx.techniques
     assert requests_mock.call_count == 1
+
+
+def test_cache_is_used_on_hit(
+    tmp_path: Path, stix_fixture: Path, mocker
+) -> None:
+    import shutil
+
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    shutil.copy(stix_fixture, cache_dir / "enterprise-attack.json")
+
+    get_spy = mocker.patch("ttp_staleness.attack_client.requests.get")
+
+    idx = build_index(cache_dir=cache_dir, ttl_hours=999)
+
+    get_spy.assert_not_called()
+    assert "T1059" in idx.techniques
