@@ -76,7 +76,9 @@ def scan(
         transient=True,
     ) as progress:
         t1 = progress.add_task("Fetching ATT&CK bundle...", total=None)
-        index = attack_client.build_index(domain=domain, ttl_hours=ttl)
+        index = attack_client.build_index(
+            domain=domain, cache_dir=settings.cache_dir, ttl_hours=ttl
+        )
         progress.remove_task(t1)
 
         t2 = progress.add_task(f"Parsing rules in {rule_dir}...", total=None)

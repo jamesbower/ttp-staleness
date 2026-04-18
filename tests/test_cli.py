@@ -85,6 +85,7 @@ def test_scan_no_cache_sets_ttl_zero(
     assert result.exit_code == 0
     kwargs = patched_pipeline["build_index"].call_args.kwargs
     assert kwargs["ttl_hours"] == 0
+    assert kwargs["cache_dir"] == Path.home() / ".cache" / "ttp-staleness"
 
 
 def test_scan_domain_option_flows_through(
