@@ -9,7 +9,7 @@ Most teams check detection rule staleness by looking at timestamps: when was the
 `ttp-staleness` scores every rule on **three dimensions**:
 
 1. **Timestamp drift** — deterministic; compares ATT&CK STIX `modified` timestamps to rule modification dates
-2. **Semantic drift** — embeddings-based (sentence-transformers, local, free); cosine similarity between rule detection logic and current ATT&CK technique description
+2. **Semantic drift** — embeddings-based; cosine similarity between rule detection logic and current ATT&CK technique description
 3. **LLM diff proposals** — opt-in; BYOLLM (OpenAI primary, Claude secondary); proposes updated rules for flagged stale entries with human-in-the-loop review
 
 Designed to run in GitHub Actions as a CI gate. No platform, no sign-up, no data leaving your environment.
