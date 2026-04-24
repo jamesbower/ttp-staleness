@@ -1,10 +1,22 @@
-# ttp-staleness
+# TTP-Staleness
 
 Score your Sigma/KQL/EQL detection rules for ATT&CK technique staleness.
 
+## Overview
+
+Most teams check detection rule staleness by looking at timestamps: when was the rule last modified, when was ATT&CK last updated, is there drift? That catches the obvious problem but misses the harder one: rules that are **timestamp-fresh but semantically drifted** — the rule was modified recently for unrelated reasons, but the technique it references has evolved in meaning. These are "stealth stale" rules.
+
+`ttp-staleness` scores every rule on **three dimensions**:
+
+1. **Timestamp drift** — deterministic; compares ATT&CK STIX `modified` timestamps to rule modification dates
+2. **Semantic drift** — embeddings-based (sentence-transformers, local, free); cosine similarity between rule detection logic and current ATT&CK technique description
+3. **LLM diff proposals** — opt-in; BYOLLM (OpenAI primary, Claude secondary); proposes updated rules for flagged stale entries with human-in-the-loop review
+
+Designed to run in GitHub Actions as a CI gate. No platform, no sign-up, no data leaving your environment.
+
 ## Status
 
-**Scaffolding.** The CLI, settings, models, and stub modules are in place. Rule parsing, ATT&CK indexing, scoring, and reporting are not yet implemented — sub-modules currently return empty data so the end-to-end pipeline can be exercised. See `docs/superpowers/plans/` for the implementation plan.
+🔨 Building — Path B3 AI enhancements. Timestamp layer complete (Phase 1-2). Semantic drift layer in progress (Phase 3). LLM diff proposal layer planned (Phase 4). Ship target: May 23, 2026.
 
 ## Requirements
 
